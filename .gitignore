@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Prisma
+prisma/*.db
+prisma/migrations/dev.db
+prisma/migrations/dev.db-journal
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage/
+
+# Optional
+.npm
+.eslintcache

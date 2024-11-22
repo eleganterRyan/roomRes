@@ -1,0 +1,79 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RoomStatus {
+  AVAILABLE
+  MAINTENANCE
+  OCCUPIED
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Room {
+  id          String    @id @default(uuid())
+  name        String
+  capacity    Int
+  facilities  String[]
+  location    String
+  roomStatus  RoomStatus @default(AVAILABLE)
+  description String?
+  floor       Int
+  building    String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  bookings    Booking[]
+
+  @@map("rooms")
+}
+
+model Booking {
+  id          String   @id @default(cuid())
+  roomId      String   
+  title       String   
+  startTime   DateTime 
+  endTime     DateTime 
+  attendees   Int      
+  purpose     String?  
+  applicant   String   
+  status      BookingStatus @default(PENDING) 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // 关联
+  room        Room     @relation(fields: [roomId], references: [id])
+  booker      User?    @relation(fields: [bookerId], references: [id])
+  bookerId    String?
+
+  @@map("bookings")
+}
+
+model User {
+  id         String    @id @default(uuid())
+  username   String    @unique
+  name       String
+  password   String
+  department String
+  role       UserRole  @default(USER)
+  phone      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  bookings   Booking[]
+
+  @@map("users")
+}

@@ -1,0 +1,1 @@
+import { BookingController as bookingController } from './controllers/bookingController'; 
