@@ -188,7 +188,7 @@ const RoomBooking: React.FC = () => {
       {/* 顶部导航 */}
       <div className="bg-white shadow-md p-4 mb-4 rounded-lg">
         <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">会议场地预订情况</h1>
+          <h1 className="text-xl font-bold">电院会议场地预订情况</h1>
           <div className="flex items-center space-x-4">
             <button 
               onClick={() => setCurrentWeek(currentWeek.subtract(1, 'week'))}
@@ -301,18 +301,6 @@ const RoomBooking: React.FC = () => {
           </table>
         </div>
       )}
-
-      {/* 预订按钮 */}
-      <div className="mt-4 flex justify-end">
-        <button
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
-                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                   transition-colors duration-200"
-          onClick={() => {/* 处理预订逻辑 */}}
-        >
-          预订会议室
-        </button>
-      </div>
 
       {/* 添加预订表单模态框 */}
       {showBookingModal && selectedRoom && selectedDate && (

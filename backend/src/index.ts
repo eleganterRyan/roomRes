@@ -22,7 +22,7 @@ app.get('/api/rooms', getRooms);
 app.get('/api/rooms/bookings', getRoomBookings);
 app.post('/api/bookings', BookingController.createBooking);
 app.get('/api/bookings', BookingController.getBookings);
-app.delete('/api/bookings/:id', ookingController.cancelBooking);
+app.delete('/api/bookings/:id', BookingController.cancelBooking);
 app.get('/api/bookings/:id', BookingController.getBooking);
 app.post('/api/auth/login', login);
 

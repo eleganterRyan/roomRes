@@ -9,7 +9,7 @@ export const getRooms = async (req: Request, res: Response): Promise<void> => {
       include: {
         bookings: {
           where: {
-            bookingStatus: {
+            status: {
               in: [BookingStatus.APPROVED, BookingStatus.PENDING]
             }
           }
@@ -51,7 +51,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
     const conflicts = await prisma.booking.findMany({
       where: {
         roomId,
-        bookingStatus: BookingStatus.APPROVED,
+        status: BookingStatus.APPROVED,
         OR: [
           {
             AND: [
@@ -82,13 +82,14 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
         endTime: new Date(endTime),
         attendees: attendees || 1,
         purpose,
-        bookingStatus: BookingStatus.APPROVED,
-        room: { connect: { id: roomId } },
-        user: { connect: { id: adminUser.id } }
+        applicant: adminUser.name,  // 添加必需的 applicant 字段
+        status: BookingStatus.APPROVED,
+        roomId,  // 直接使用 roomId 而不是 connect
+        bookerId: adminUser.id  // 直接使用 bookerId 而不是 connect
       },
       include: {
         room: true,
-        user: {
+        booker: {
           select: {
             id: true,
             name: true,
@@ -124,7 +125,7 @@ export const getRoomBookings = async (req: Request, res: Response): Promise<void
       },
       include: {
         room: true,
-        user: {
+        booker: {
           select: {
             id: true,
             name: true,
@@ -149,7 +150,7 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
 
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: { user: true }
+      include: { booker: true }
     });
 
     if (!booking) {
@@ -157,15 +158,15 @@ export const cancelBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (booking.userId !== userId) {
+    if (booking.booker?.id !== userId) {
       res.status(403).json({ error: '无权取消此预订' });
       return;
     }
 
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
-      data: { bookingStatus: 'CANCELLED' },
-      include: { room: true, user: true }
+      data: { status: 'CANCELLED' },
+      include: { room: true, booker: true }
     });
 
     res.json(updatedBooking);

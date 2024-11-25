@@ -1,5 +1,8 @@
 {
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.3"
   }
-} 
+}
