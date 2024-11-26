@@ -219,7 +219,7 @@ const RoomBooking: React.FC = () => {
             <thead>
               <tr>
                 <th className="p-3 border bg-gray-50 min-w-[120px] sticky left-0 z-10 bg-white">
-                  <div className="font-bold">场地</div>
+                  <div className="font-bold">会议室</div>
                   <div className="text-xs text-gray-500 mt-1">点击查看详情</div>
                 </th>
                 {weekDays.map(day => {
