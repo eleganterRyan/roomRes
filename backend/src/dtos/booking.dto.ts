@@ -21,9 +21,6 @@ export class CreateBookingDto {
   @IsOptional()
   purpose?: string;
 
-  @IsString()
-  applicant: string;
-
   @IsEnum(BookingStatus)
   @IsOptional()
   status?: BookingStatus;

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { endpoints } from '../config/api';  // 导入 endpoints
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -9,10 +11,28 @@ const Login: React.FC = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('登录信息:', formData);
-    navigate('/booking');
+    try {
+      // 使用 endpoints 中定义的 login 路径
+      const response = await axios.post(endpoints.login, formData);
+      console.log('登录响应:', response.data); // 添加调试日志
+      
+      if (response.data.token) {
+        // 保存 token
+        localStorage.setItem('token', response.data.token);
+        // 保存用户信息
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        // 强制跳转到预订页面
+        window.location.href = '/booking';
+      } else {
+        console.error('登录响应中没有token');
+        alert('登录失败：服务器响应异常');
+      }
+    } catch (error: any) {
+      console.error('登录失败:', error);
+      alert(error.response?.data?.error || '登录失败，请重试');
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +129,17 @@ const Login: React.FC = () => {
                      transform hover:-translate-y-0.5 transition-all duration-200"
           >
             登录
+          </button>
+
+          {/* 添加游客访问按钮 */}
+          <button
+            type="button"
+            onClick={() => navigate('/guest')}
+            className="w-full mt-4 bg-transparent border border-white/30 text-white py-3 rounded-lg font-medium
+                     hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20
+                     transform hover:-translate-y-0.5 transition-all duration-200"
+          >
+            游客访问
           </button>
         </form>
 

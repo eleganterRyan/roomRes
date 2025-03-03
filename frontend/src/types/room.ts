@@ -25,10 +25,9 @@ export interface Booking {
   endTime: string;
   attendees: number;
   purpose?: string;
-  booker?: {
-    id: string;
-    name: string;
-  };
+  applicant: string;
+  status: BookingStatus;
+  userId: string;
 }
 
 // 会议室接口
@@ -50,4 +49,14 @@ export interface BookingForm {
   attendees: number;
   purpose: string;
   applicant: string;
+}
+
+// 更新 API 请求类型
+export interface CreateBookingRequest {
+  roomId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  attendees: number;
+  purpose?: string;
 } 

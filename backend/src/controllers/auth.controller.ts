@@ -29,20 +29,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { 
         userId: user.id,
         username: user.username,
-        role: user.role 
+        role: user.role
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
 
     // 返回用户信息和token
     res.json({
       user: {
-        id: user.id,
+        userId: user.id,
         username: user.username,
         name: user.name,
-        department: user.department,
-        role: user.role
+        role: user.role,
+        department: user.department
       },
       token
     });

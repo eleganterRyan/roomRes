@@ -1,22 +1,59 @@
 import { PrismaClient, UserRole, RoomStatus } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // 创建默认管理员用户
+  // 创建默认管理员用户，添加密码加密
+  const hashedPassword = await bcrypt.hash('admin123', 10);  // 加密密码
+  
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {},
     create: {
       username: 'admin',
       name: '管理员',
-      password: 'admin123', // 实际应用中应该加密
+      password: hashedPassword,  // 使用加密后的密码
       department: 'IT部门',
       role: UserRole.ADMIN
     }
   });
 
   console.log('Created admin user:', adminUser);
+
+  // 创建10个普通用户账户
+  const departments = ['研发部', '市场部', '人事部', '财务部', '运营部'];
+  const testUsers = [
+    { username: 'user1', name: '张三', department: '研发部' },
+    { username: 'user2', name: '李四', department: '市场部' },
+    { username: 'user3', name: '王五', department: '人事部' },
+    { username: 'user4', name: '赵六', department: '财务部' },
+    { username: 'user5', name: '钱七', department: '运营部' },
+    { username: 'user6', name: '孙八', department: '研发部' },
+    { username: 'user7', name: '周九', department: '市场部' },
+    { username: 'user8', name: '吴十', department: '人事部' },
+    { username: 'user9', name: '郑十一', department: '财务部' },
+    { username: 'user10', name: '王十二', department: '运营部' },
+  ];
+
+  // 为所有测试用户使用相同的密码 'password123'
+  const userPassword = await bcrypt.hash('password123', 10);
+
+  for (const user of testUsers) {
+    await prisma.user.upsert({
+      where: { username: user.username },
+      update: {},
+      create: {
+        username: user.username,
+        name: user.name,
+        password: userPassword,
+        department: user.department,
+        role: UserRole.USER
+      }
+    });
+  }
+
+  console.log('Created test users successfully');
 
   // 添加会议室数据
   const rooms = [

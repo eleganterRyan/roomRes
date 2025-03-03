@@ -9,6 +9,10 @@ import { Room, Booking, BookingForm } from '../types/room';
 import { roomApi } from '../services/api';
 import './RoomBooking.css';
 import { getDateInfo } from '../utils/chineseCalendar';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { endpoints } from '../config/api';
+import { BookingStatus } from '../types/room';
 
 // 配置 dayjs
 dayjs.extend(utc);
@@ -26,11 +30,16 @@ interface TimelineProps {
 const RoomBooking: React.FC = () => {
   const [currentWeek, setCurrentWeek] = useState<Dayjs>(dayjs().tz());
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
+  const [filterEnabled, setFilterEnabled] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [capacityFilter, setCapacityFilter] = useState<number | null>(null);
+  const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [bookingForm, setBookingForm] = useState<BookingForm>({
     title: '',
     startTime: '',
@@ -39,32 +48,68 @@ const RoomBooking: React.FC = () => {
     purpose: '',
     applicant: ''
   });
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
     const fetchRooms = async () => {
       try {
         const roomsData = await roomApi.getRooms();
-        console.log('Fetched rooms:', roomsData);
         setRooms(roomsData);
-      } catch (error) {
+      } catch (error: any) {
+        if (error.response?.status === 401) {
+          navigate('/login');
+        }
         console.error('获取会议室失败:', error);
-        // 这里可以添加错误提示
       }
     };
 
     fetchRooms();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     fetchBookings(currentWeek, setLoading, setBookings);
   }, [currentWeek]);
+
+  // 添加筛选逻辑
+  useEffect(() => {
+    if (!filterEnabled) {
+      setFilteredRooms(rooms);
+      return;
+    }
+
+    let filtered = [...rooms];
+
+    // 根据容量筛选
+    if (capacityFilter !== null) {
+      filtered = filtered.filter(room => room.capacity >= capacityFilter);
+    }
+
+    // 根据设施筛选
+    if (selectedFacilities.length > 0) {
+      filtered = filtered.filter(room =>
+        selectedFacilities.every(facility => room.facilities.includes(facility))
+      );
+    }
+
+    setFilteredRooms(filtered);
+  }, [rooms, filterEnabled, capacityFilter, selectedFacilities]);
+
+  // 所有可能的设施列表
+  const allFacilities = ['投影仪', '白板', '视频会议系统', 'WiFi', '电视屏幕', '音响设备'];
 
   // 获取指定日期的预订信息
   const getDayBookings = (roomId: string, date: Dayjs) => {
     return bookings
       .filter(booking => 
         booking.roomId === roomId && 
-        dayjs(booking.startTime).isSame(date, 'day')
+        dayjs(booking.startTime).isSame(date, 'day') &&
+        booking.status !== 'cancelled'
       )
       .sort((a, b) => {
         // 按开始时间升序排序
@@ -159,8 +204,7 @@ const RoomBooking: React.FC = () => {
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString(),
         attendees: bookingForm.attendees,
-        purpose: bookingForm.purpose,
-        applicant: bookingForm.applicant
+        purpose: bookingForm.purpose
       });
 
       alert('预订成功！');
@@ -183,6 +227,27 @@ const RoomBooking: React.FC = () => {
     }
   };
 
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      console.log('开始取消预订:', bookingId);
+      await roomApi.cancelBooking(bookingId);
+      
+      // 直接从本地状态中移除已取消的预订
+      setBookings(prevBookings => 
+        prevBookings.filter(booking => booking.id !== bookingId)
+      );
+      
+      // 重新获取最新数据
+      await fetchBookings(currentWeek, setLoading, setBookings);
+      
+      alert('预订已取消');
+    } catch (error: any) {
+      console.error('取消预订失败:', error);
+      const errorMessage = error.response?.data?.error || '取消预订失败，请重试';
+      alert(errorMessage);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       {/* 顶部导航 */}
@@ -190,15 +255,38 @@ const RoomBooking: React.FC = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">电院会议场地预订情况</h1>
           <div className="flex items-center space-x-4">
+            <span className="text-gray-600">当前账户：{JSON.parse(localStorage.getItem('user') || '{}').name || '未登录'}</span>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('token');
+                navigate('/login');
+              }}
+              className="px-4 py-2 text-red-600 hover:text-red-800 font-medium"
+            >
+              退出登录
+            </button>
             <button 
               onClick={() => setCurrentWeek(currentWeek.subtract(1, 'week'))}
               className="text-blue-600 hover:text-blue-800"
             >
               {'<< 上一周'}
             </button>
-            <span className="text-lg font-medium">
-              {currentWeek.startOf('week').format('YYYY年MM月DD日')} 至 {currentWeek.endOf('week').format('YYYY年MM月DD日')}
-            </span>
+            <div className="flex items-center space-x-2">
+              <input
+                type="date"
+                value={currentWeek.format('YYYY-MM-DD')}
+                onChange={(e) => {
+                  // 将选择的日期设置为当周的起始日
+                  const selectedDate = dayjs(e.target.value);
+                  const weekStart = selectedDate.startOf('week');
+                  setCurrentWeek(weekStart);
+                }}
+                className="px-2 py-1 border border-gray-200 rounded hover:border-blue-500 cursor-pointer"
+              />
+              <span className="text-gray-500">
+                {currentWeek.startOf('week').format('YYYY年MM月DD日')} 至 {currentWeek.endOf('week').format('YYYY年MM月DD日')}
+              </span>
+            </div>
             <button 
               onClick={() => setCurrentWeek(currentWeek.add(1, 'week'))}
               className="text-blue-600 hover:text-blue-800"
@@ -219,8 +307,91 @@ const RoomBooking: React.FC = () => {
             <thead>
               <tr>
                 <th className="p-3 border bg-gray-50 min-w-[120px] sticky left-0 z-10 bg-white">
-                  <div className="font-bold">会议室</div>
-                  <div className="text-xs text-gray-500 mt-1">点击查看详情</div>
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold">会议室</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => filterEnabled && setShowFilterPanel(!showFilterPanel)}
+                        className={`text-sm font-medium ${filterEnabled ? 'text-blue-600 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}
+                      >
+                        过滤模式
+                      </button>
+                      <button
+                        onClick={() => setFilterEnabled(!filterEnabled)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 focus:outline-none ${
+                          filterEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                            filterEnabled ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  {/* 筛选面板 */}
+                  {showFilterPanel && filterEnabled && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                      <div className="bg-white rounded-lg p-6 w-full max-w-md relative">
+                        <div className="flex justify-between items-center mb-4">
+                          <h2 className="text-lg font-bold">筛选条件</h2>
+                          <button
+                            onClick={() => setShowFilterPanel(false)}
+                            className="text-gray-500 hover:text-gray-700"
+                          >
+                            关闭
+                          </button>
+                        </div>
+
+                        {/* 容量筛选 */}
+                        <div className="space-y-2 mb-4">
+                          <label className="block text-sm font-medium text-gray-700">最小容量要求</label>
+                          <div className="flex flex-wrap gap-1">
+                            {[0, 10, 20, 30, 50].map(cap => (
+                              <button
+                                key={cap}
+                                onClick={() => setCapacityFilter(cap === 0 ? null : cap)}
+                                className={`px-3 py-1 rounded-full text-sm ${
+                                  capacityFilter === cap || (cap === 0 && capacityFilter === null)
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-gray-100 hover:bg-gray-200'
+                                }`}
+                              >
+                                {cap === 0 ? '全部' : `${cap}人以上`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 设施筛选 */}
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-gray-700">设施要求</label>
+                          <div className="flex flex-wrap gap-1">
+                            {allFacilities.map(facility => (
+                              <button
+                                key={facility}
+                                onClick={() => {
+                                  setSelectedFacilities(prev =>
+                                    prev.includes(facility)
+                                      ? prev.filter(f => f !== facility)
+                                      : [...prev, facility]
+                                  );
+                                }}
+                                className={`px-3 py-1 rounded-full text-sm ${
+                                  selectedFacilities.includes(facility)
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-gray-100 hover:bg-gray-200'
+                                }`}
+                              >
+                                {facility}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </th>
                 {weekDays.map(day => {
                   const specialDay = getDateInfo(day);
@@ -240,7 +411,7 @@ const RoomBooking: React.FC = () => {
             </thead>
             
             <tbody>
-              {rooms.map(room => (
+              {(filterEnabled ? filteredRooms : rooms).map(room => (
                 <tr key={room.id} className="hover:bg-gray-50">
                   <td className="p-3 border font-medium sticky left-0 bg-white hover:bg-gray-50 cursor-pointer">
                     <div className="flex flex-col">
@@ -268,29 +439,11 @@ const RoomBooking: React.FC = () => {
                     >
                       <div className="space-y-1">
                         {getDayBookings(room.id, day).map(booking => (
-                          <div 
-                            key={booking.id}
-                            className="bg-blue-100 text-blue-800 p-2 rounded text-sm cursor-pointer
-                                     hover:bg-blue-200 transition-colors duration-200"
-                            title={`预订人: ${booking.booker?.name || '未知'}`}
-                            style={{
-                              position: 'relative',
-                              zIndex: 1
-                            }}
-                          >
-                            <div className="font-medium">
-                              {dayjs(booking.startTime).format('HH:mm')} - 
-                              {dayjs(booking.endTime).format('HH:mm')}
-                            </div>
-                            <div className="text-xs mt-1 font-medium truncate">
-                              {booking.title}
-                            </div>
-                            {booking.purpose && (
-                              <div className="text-xs text-blue-600 truncate">
-                                {booking.purpose}
-                              </div>
-                            )}
-                          </div>
+                          <BookingCard 
+                            key={booking.id} 
+                            booking={booking} 
+                            onCancelBooking={handleCancelBooking}
+                          />
                         ))}
                       </div>
                     </td>
@@ -351,19 +504,6 @@ const RoomBooking: React.FC = () => {
                 />
               </div>
 
-              {/* 添加申请人输入框 */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">申请人</label>
-                <input
-                  type="text"
-                  value={bookingForm.applicant}
-                  onChange={e => setBookingForm({...bookingForm, applicant: e.target.value})}
-                  placeholder="请输入申请人姓名"
-                  className="w-full p-2 border rounded"
-                  required
-                />
-              </div>
-
               {/* 时间选择部分 - 调整间距 */}
               <div className="space-y-4">
                 <label className="block text-sm font-medium text-gray-700">预订时间</label>
@@ -406,18 +546,6 @@ const RoomBooking: React.FC = () => {
                 </div>
               </div>
 
-              {/* 添加会议用途/备注输入框 */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">会议用途</label>
-                <textarea
-                  value={bookingForm.purpose}
-                  onChange={e => setBookingForm({...bookingForm, purpose: e.target.value})}
-                  placeholder="请简要说明会议用途"
-                  className="w-full p-2 border rounded"
-                  rows={3}
-                />
-              </div>
-
               {/* 操作按钮 */}
               <div className="flex justify-end gap-3 pt-4">
                 <button
@@ -449,8 +577,14 @@ const fetchBookings = async (currentWeek: Dayjs, setLoading: Function, setBookin
     const startDate = currentWeek.startOf('week').format('YYYY-MM-DD');
     const endDate = currentWeek.endOf('week').format('YYYY-MM-DD');
     const bookingsData = await roomApi.getRoomBookings(startDate, endDate);
-    console.log('Fetched bookings:', bookingsData);
-    setBookings(bookingsData);
+    
+    // 只显示未取消的预订
+    const activeBookings = bookingsData.filter(
+      booking => booking.status !== 'cancelled'
+    );
+    
+    console.log('获取到的预订:', activeBookings);
+    setBookings(activeBookings);
   } catch (error) {
     console.error('获取预订信息失败:', error);
     // 里可以添加错误提示
@@ -754,6 +888,40 @@ const Timeline: React.FC<TimelineProps> = ({ bookingForm, setBookingForm }) => {
       <div className="text-center text-sm text-gray-600 select-none">
         当前选择: {bookingForm.startTime} - {bookingForm.endTime}
       </div>
+    </div>
+  );
+};
+
+const BookingCard = ({ 
+  booking,
+  onCancelBooking
+}: { 
+  booking: Booking;
+  onCancelBooking: (id: string) => void;
+}) => {
+  // 获取当前用户信息
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+  return (
+    <div className="bg-blue-50 p-3 rounded-lg shadow-md border border-blue-100 hover:shadow-lg transition-shadow duration-200">
+      <div className="text-sm text-blue-800">
+        <div>主题：{booking.title}</div>
+        <div>预约人：{booking.applicant}</div>
+        <div>时间：{dayjs(booking.startTime).format('HH:mm')} - {dayjs(booking.endTime).format('HH:mm')}</div>
+      </div>
+      {currentUser.name === booking.applicant && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();  // 阻止事件冒泡
+            if (window.confirm('确定要取消这个预订吗？')) {
+              onCancelBooking(booking.id);
+            }
+          }}
+          className="mt-2 text-red-600 text-sm hover:text-red-800"
+        >
+          取消预订
+        </button>
+      )}
     </div>
   );
 };

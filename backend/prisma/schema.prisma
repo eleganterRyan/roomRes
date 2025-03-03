@@ -37,7 +37,7 @@ model Room {
   building    String
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
-  bookings    Booking[]
+  bookings    Booking[] // 与Booking模型关联
 
   @@map("rooms")
 }
@@ -51,14 +51,15 @@ model Booking {
   attendees   Int      
   purpose     String?  
   applicant   String   
-  status      BookingStatus @default(PENDING) 
+  status      BookingStatus @default(APPROVED)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  // 关联
-  room        Room     @relation(fields: [roomId], references: [id])
-  booker      User?    @relation(fields: [bookerId], references: [id])
-  bookerId    String?
+  // 添加与 User 的关系
+  userId      String    
+  user        User      @relation(fields: [userId], references: [id])
+  // 保持与 Room 的关系
+  room        Room      @relation(fields: [roomId], references: [id])
 
   @@map("bookings")
 }
